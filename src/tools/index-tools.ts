@@ -10,6 +10,7 @@ import { getEmbeddingProvider } from "../services/embedding-provider.js";
 import { getIndexingProgress, indexProject, isIndexingInProgress, removeProjectIndex, requestCancellation, setIndexingProgress, updateProjectIndex } from "../services/indexer.js";
 import { isProjectLocked, terminateLockHolder } from "../services/lock.js";
 import { logger } from "../services/logger.js";
+import { validateProjectPath } from "../services/path-validation.js";
 import { getWatchedProjects, isWatching, startWatching, stopWatching } from "../services/watcher.js";
 
 const DOCKER_NOT_AVAILABLE_MESSAGE = [
@@ -65,7 +66,13 @@ export async function handleIndexTool(
   name: string,
   args: Record<string, unknown>,
 ): Promise<string> {
-  const projectPath = (args.projectPath as string) || process.cwd();
+  const rawProjectPath = (args.projectPath as string) || process.cwd();
+  let projectPath: string;
+  try {
+    projectPath = validateProjectPath(rawProjectPath);
+  } catch (err) {
+    return err instanceof Error ? err.message : "Invalid project path.";
+  }
   const progressMessages: string[] = [];
   const onProgress = (msg: string) => {
     progressMessages.push(msg);

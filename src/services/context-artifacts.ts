@@ -148,9 +148,10 @@ export async function readArtifactContent(
   artifactPath: string,
   projectPath: string,
 ): Promise<{ content: string; contentHash: string }> {
+  const resolvedProject = path.resolve(projectPath);
   const resolved = path.isAbsolute(artifactPath)
-    ? artifactPath
-    : path.resolve(projectPath, artifactPath);
+    ? validatePathWithinBase(artifactPath, resolvedProject, "Artifact")
+    : validatePathWithinBase(path.resolve(resolvedProject, artifactPath), resolvedProject, "Artifact");
 
   const stat = await fsp.stat(resolved);
 
@@ -197,6 +198,20 @@ export async function readArtifactContent(
 
 function hashContent(content: string): string {
   return createHash("sha256").update(content).digest("hex").slice(0, 16);
+}
+
+/**
+ * Validate that a resolved path stays within the expected base directory.
+ * Prevents path traversal attacks (e.g. "../../../etc/passwd").
+ * Returns the normalized absolute path if safe, throws otherwise.
+ */
+function validatePathWithinBase(resolvedPath: string, basePath: string, label: string): string {
+  const normalizedBase = path.resolve(basePath);
+  const normalizedTarget = path.resolve(resolvedPath);
+  if (!normalizedTarget.startsWith(normalizedBase + path.sep) && normalizedTarget !== normalizedBase) {
+    throw new Error(`${label} path resolves outside the project directory: ${resolvedPath}`);
+  }
+  return normalizedTarget;
 }
 
 // ── Chunking ─────────────────────────────────────────────────────────────
