@@ -15,6 +15,7 @@ import { getEmbeddingConfig } from "../services/embedding-config.js";
 import { getEmbeddingProvider } from "../services/embedding-provider.js";
 import { isIndexingInProgress } from "../services/indexer.js";
 import { logger } from "../services/logger.js";
+import { validateProjectPath } from "../services/path-validation.js";
 import { ensureOllamaReady } from "../services/ollama.js";
 import { getCollectionInfo, loadContextMetadata } from "../services/qdrant.js";
 
@@ -22,8 +23,14 @@ export async function handleContextTool(
   name: string,
   args: Record<string, unknown>,
 ): Promise<string> {
-  const projectPath = (args.projectPath as string) || process.cwd();
-  const resolvedPath = path.resolve(projectPath);
+  const rawProjectPath = (args.projectPath as string) || process.cwd();
+  let projectPath: string;
+  try {
+    projectPath = validateProjectPath(rawProjectPath);
+  } catch (err) {
+    return err instanceof Error ? err.message : "Invalid project path.";
+  }
+  const resolvedPath = projectPath;
 
   switch (name) {
     case "codebase_context": {

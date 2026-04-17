@@ -635,7 +635,24 @@ export async function loadProjectHashes(collName: string): Promise<Map<string, s
     const payload = points[0].payload;
     if (!payload?.fileHashes) return null;
 
-    const hashObj = JSON.parse(payload.fileHashes as string) as Record<string, string>;
+    let hashObj: Record<string, string>;
+    try {
+      hashObj = JSON.parse(payload.fileHashes as string) as Record<string, string>;
+    } catch {
+      logger.warn("loadProjectHashes: stored fileHashes is not valid JSON, returning null", { collName });
+      return null;
+    }
+    // Validate that the parsed result is a flat string→string map
+    if (typeof hashObj !== "object" || hashObj === null || Array.isArray(hashObj)) {
+      logger.warn("loadProjectHashes: stored fileHashes has unexpected shape, returning null", { collName });
+      return null;
+    }
+    for (const [k, v] of Object.entries(hashObj)) {
+      if (typeof k !== "string" || typeof v !== "string") {
+        logger.warn("loadProjectHashes: stored fileHashes has non-string key/value, returning null", { collName });
+        return null;
+      }
+    }
     return new Map(Object.entries(hashObj));
   } catch (err) {
     logger.warn("loadProjectHashes failed (propagating)", {
@@ -751,7 +768,19 @@ export async function loadGraphData(graphCollName: string): Promise<CodeGraph | 
     const payload = points[0].payload;
     if (!payload?.graphData) return null;
 
-    return JSON.parse(payload.graphData as string) as CodeGraph;
+    let graph: CodeGraph;
+    try {
+      graph = JSON.parse(payload.graphData as string) as CodeGraph;
+    } catch {
+      logger.warn("loadGraphData: stored graphData is not valid JSON, returning null", { graphCollName });
+      return null;
+    }
+    // Basic structural validation
+    if (!graph || typeof graph !== "object" || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
+      logger.warn("loadGraphData: stored graphData has unexpected shape, returning null", { graphCollName });
+      return null;
+    }
+    return graph;
   } catch (err) {
     logger.warn("loadGraphData failed (returning null)", {
       graphCollName,
@@ -863,7 +892,18 @@ export async function loadContextMetadata(contextCollName: string): Promise<Arti
     const payload = points[0].payload;
     if (!payload?.artifacts) return null;
 
-    return JSON.parse(payload.artifacts as string) as ArtifactIndexState[];
+    let artifacts: ArtifactIndexState[];
+    try {
+      artifacts = JSON.parse(payload.artifacts as string) as ArtifactIndexState[];
+    } catch {
+      logger.warn("loadContextMetadata: stored artifacts is not valid JSON, returning null", { contextCollName });
+      return null;
+    }
+    if (!Array.isArray(artifacts)) {
+      logger.warn("loadContextMetadata: stored artifacts is not an array, returning null", { contextCollName });
+      return null;
+    }
+    return artifacts;
   } catch (err) {
     logger.warn("loadContextMetadata failed (returning null)", {
       contextCollName,

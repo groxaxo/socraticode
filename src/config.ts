@@ -119,10 +119,21 @@ interface SocratiCodeConfig {
 }
 
 /**
+ * Validate that a resolved path doesn't escape the project root via traversal.
+ * Returns true if the path is safe, false otherwise.
+ */
+function isPathWithinProject(resolvedPath: string, projectRoot: string): boolean {
+  const normalizedRoot = path.resolve(projectRoot);
+  const normalizedTarget = path.resolve(resolvedPath);
+  return normalizedTarget.startsWith(normalizedRoot + path.sep) || normalizedTarget === normalizedRoot;
+}
+
+/**
  * Load linked project paths from `.socraticode.json` and/or the
  * `SOCRATICODE_LINKED_PROJECTS` env var (comma-separated absolute or relative paths).
  *
  * Returns resolved absolute paths. Invalid/missing paths are silently skipped.
+ * Paths that resolve outside the project directory (via traversal) are rejected.
  */
 export function loadLinkedProjects(projectPath: string): string[] {
   const resolvedRoot = path.resolve(projectPath);
@@ -138,7 +149,7 @@ export function loadLinkedProjects(projectPath: string): string[] {
         for (const p of config.linkedProjects) {
           if (typeof p === "string" && p.trim()) {
             const resolved = path.resolve(resolvedRoot, p.trim());
-            if (resolved !== resolvedRoot && fs.existsSync(resolved)) {
+            if (isPathWithinProject(resolved, resolvedRoot) && resolved !== resolvedRoot && fs.existsSync(resolved)) {
               paths.add(resolved);
             }
           }
@@ -156,7 +167,7 @@ export function loadLinkedProjects(projectPath: string): string[] {
       const trimmed = p.trim();
       if (trimmed) {
         const resolved = path.resolve(resolvedRoot, trimmed);
-        if (resolved !== resolvedRoot && fs.existsSync(resolved)) {
+        if (isPathWithinProject(resolved, resolvedRoot) && resolved !== resolvedRoot && fs.existsSync(resolved)) {
           paths.add(resolved);
         }
       }

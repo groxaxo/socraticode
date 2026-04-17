@@ -11,6 +11,7 @@ import { getEmbeddingProvider } from "../services/embedding-provider.js";
 import type { IndexingProgress } from "../services/indexer.js";
 import { getIndexingProgress, getLastCompleted, isIndexingInProgress } from "../services/indexer.js";
 import { getLockHolderPid, } from "../services/lock.js";
+import { validateProjectPath, validateFileFilter } from "../services/path-validation.js";
 import { ensureOllamaReady } from "../services/ollama.js";
 import { getCollectionInfo, getProjectMetadata, searchChunks, searchMultipleCollections } from "../services/qdrant.js";
 import { ensureWatcherStarted, isWatchedByAnyProcess, isWatching } from "../services/watcher.js";
@@ -50,7 +51,7 @@ export async function handleQueryTool(
   args: Record<string, unknown>,
 ): Promise<string> {
   const projectPath = (args.projectPath as string) || process.cwd();
-  const resolvedPath = path.resolve(projectPath);
+  const resolvedPath = validateProjectPath(projectPath);
   const projectId = projectIdFromPath(resolvedPath);
   const collection = collectionName(projectId);
 
@@ -70,7 +71,8 @@ export async function handleQueryTool(
 
       const query = args.query as string;
       const limit = (args.limit as number) || SEARCH_DEFAULT_LIMIT;
-      const fileFilter = args.fileFilter as string | undefined;
+      const rawFileFilter = args.fileFilter as string | undefined;
+      const fileFilter = rawFileFilter ? validateFileFilter(rawFileFilter) : undefined;
       const languageFilter = args.languageFilter as string | undefined;
       const includeLinked = args.includeLinked as boolean | undefined;
 

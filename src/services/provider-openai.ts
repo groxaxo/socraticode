@@ -86,7 +86,9 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      throw new Error(`OpenAI API is not reachable: ${message}`);
+      // Sanitize error message to avoid leaking API keys or internal details
+      const sanitized = message.replace(/sk-[a-zA-Z0-9_-]{10,}/g, "sk-***REDACTED***");
+      throw new Error(`OpenAI API is not reachable: ${sanitized}`);
     }
 
     // Cloud providers don't pull models / start containers
@@ -143,7 +145,8 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
       return { available: true, modelReady: true, statusLines: lines };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      lines.push(`${icon(false)} OpenAI API: ${message}`);
+      const sanitized = message.replace(/sk-[a-zA-Z0-9_-]{10,}/g, "sk-***REDACTED***");
+      lines.push(`${icon(false)} OpenAI API: ${sanitized}`);
       return { available: false, modelReady: false, statusLines: lines };
     }
   }

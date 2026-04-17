@@ -86,7 +86,9 @@ export class GoogleEmbeddingProvider implements EmbeddingProvider {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      throw new Error(`Google Generative AI API is not reachable: ${message}`);
+      // Sanitize error message to avoid leaking API keys or internal details
+      const sanitized = message.replace(/AIza[a-zA-Z0-9_-]{10,}/g, "AIza***REDACTED***");
+      throw new Error(`Google Generative AI API is not reachable: ${sanitized}`);
     }
 
     return { modelPulled: false, containerStarted: false, imagePulled: false };
@@ -144,7 +146,8 @@ export class GoogleEmbeddingProvider implements EmbeddingProvider {
       return { available: true, modelReady: true, statusLines: lines };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      lines.push(`${icon(false)} Google Generative AI API: ${message}`);
+      const sanitized = message.replace(/AIza[a-zA-Z0-9_-]{10,}/g, "AIza***REDACTED***");
+      lines.push(`${icon(false)} Google Generative AI API: ${sanitized}`);
       return { available: false, modelReady: false, statusLines: lines };
     }
   }

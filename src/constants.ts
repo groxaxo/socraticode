@@ -16,8 +16,8 @@ export const SOCRATICODE_VERSION: string = pkg.version;
 
 // ── Qdrant configuration ────────────────────────────────────────────────
 
-export const QDRANT_PORT = parseInt(process.env.QDRANT_PORT || "16333", 10);
-export const QDRANT_GRPC_PORT = parseInt(process.env.QDRANT_GRPC_PORT || "16334", 10);
+export const QDRANT_PORT = (() => { const n = parseInt(process.env.QDRANT_PORT || "16333", 10); return Number.isNaN(n) || n <= 0 ? 16333 : n; })();
+export const QDRANT_GRPC_PORT = (() => { const n = parseInt(process.env.QDRANT_GRPC_PORT || "16334", 10); return Number.isNaN(n) || n <= 0 ? 16334 : n; })();
 export const QDRANT_HOST = process.env.QDRANT_HOST || "localhost";
 export const QDRANT_API_KEY = process.env.QDRANT_API_KEY || undefined;
 /** Full URL for remote/cloud Qdrant instances (e.g. https://xyz.aws.cloud.qdrant.io:6333).
@@ -43,7 +43,7 @@ export function resolveQdrantPort(url: string): number {
 
 // ── Ollama configuration ────────────────────────────────────────────────
 
-export const OLLAMA_PORT = parseInt(process.env.OLLAMA_PORT || "11435", 10);
+export const OLLAMA_PORT = (() => { const n = parseInt(process.env.OLLAMA_PORT || "11435", 10); return Number.isNaN(n) || n <= 0 ? 11435 : n; })();
 export const OLLAMA_HOST = process.env.OLLAMA_HOST || `http://localhost:${OLLAMA_PORT}`;
 export const OLLAMA_CONTAINER_NAME = "socraticode-ollama";
 export const OLLAMA_IMAGE = "ollama/ollama:latest";
@@ -71,9 +71,10 @@ export const INDEX_BATCH_SIZE = 50; // files per batch for batched/resumable ind
 
 /** Maximum file size in bytes. Files larger than this are skipped during indexing.
  *  Default: 5 MB. Override via MAX_FILE_SIZE_MB env var. */
-export const MAX_FILE_BYTES = Math.round(
-  parseFloat(process.env.MAX_FILE_SIZE_MB || "5") * 1_000_000,
-);
+export const MAX_FILE_BYTES = (() => {
+  const n = parseFloat(process.env.MAX_FILE_SIZE_MB || "5");
+  return Number.isNaN(n) || n <= 0 ? 5_000_000 : Math.round(n * 1_000_000);
+})();
 
 /** Maximum file size in bytes for code graph AST parsing.
  *  Graph parsing loads the entire file into memory for AST analysis,

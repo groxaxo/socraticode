@@ -4,20 +4,27 @@ import path from "node:path";
 import { mergeExtraExtensions } from "../constants.js";
 import { awaitGraphBuild, findCircularDependencies, generateMermaidDiagram, getFileDependencies, getGraphBuildProgress, getGraphStats, getGraphStatus, getLastGraphBuildCompleted, getOrBuildGraph, isGraphBuildInProgress, rebuildGraph, removeGraph } from "../services/code-graph.js";
 import { logger } from "../services/logger.js";
+import { validateProjectPath } from "../services/path-validation.js";
 import { ensureWatcherStarted } from "../services/watcher.js";
 
 export async function handleGraphTool(
   name: string,
   args: Record<string, unknown>,
 ): Promise<string> {
-  const projectPath = path.resolve((args.projectPath as string) || process.cwd());
+  const rawProjectPath = (args.projectPath as string) || process.cwd();
+  let projectPath: string;
+  try {
+    projectPath = validateProjectPath(rawProjectPath);
+  } catch (err) {
+    return err instanceof Error ? err.message : "Invalid project path.";
+  }
 
   // Auto-start watcher on any graph interaction (fire-and-forget)
   ensureWatcherStarted(projectPath);
 
   switch (name) {
     case "codebase_graph_build": {
-      const resolved = path.resolve(projectPath);
+      const resolved = projectPath;
 
       // Concurrency guard: if already building, show progress
       if (isGraphBuildInProgress(resolved)) {
@@ -64,6 +71,14 @@ export async function handleGraphTool(
 
     case "codebase_graph_query": {
       const filePath = args.filePath as string;
+      if (!filePath || typeof filePath !== "string" || filePath.includes("\0")) {
+        return "Error: filePath must be a non-empty string without null bytes.";
+      }
+      // Reject absolute paths or traversal
+      const normalizedFilePath = path.normalize(filePath);
+      if (path.isAbsolute(normalizedFilePath) || normalizedFilePath.startsWith("..")) {
+        return "Error: filePath must be a relative path within the project (no absolute paths or '..' traversal).";
+      }
       const graph = await getOrBuildGraph(projectPath);
       const deps = getFileDependencies(graph, filePath);
 
@@ -182,7 +197,7 @@ export async function handleGraphTool(
     }
 
     case "codebase_graph_status": {
-      const resolved = path.resolve(projectPath);
+      const resolved = projectPath;
 
       // Show in-flight build progress if building
       if (isGraphBuildInProgress(resolved)) {
