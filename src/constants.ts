@@ -89,6 +89,19 @@ export const SEARCH_MIN_SCORE = Math.max(0, Math.min(1,
   parseFloat(process.env.SEARCH_MIN_SCORE || "0.10") || 0,
 ));
 
+/** Optional HTTP reranker endpoint. When unset, search stays pure Qdrant hybrid RRF. */
+export const CODEBASE_RERANKER_URL = process.env.CODEBASE_RERANKER_URL || undefined;
+
+/** Request timeout for the optional reranker. */
+export const CODEBASE_RERANKER_TIMEOUT_MS = Math.max(1_000,
+  parseInt(process.env.CODEBASE_RERANKER_TIMEOUT_MS || "60000", 10) || 60_000,
+);
+
+/** How many extra Qdrant candidates to request before optional reranking. */
+export const CODEBASE_RERANKER_PREFETCH_MULTIPLIER = Math.max(1, Math.min(20,
+  parseInt(process.env.CODEBASE_RERANKER_PREFETCH_MULTIPLIER || "3", 10) || 3,
+));
+
 // ── Chunking configuration ──────────────────────────────────────────────
 
 export const CHUNK_SIZE = 100; // lines per chunk

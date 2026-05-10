@@ -2,11 +2,12 @@
 // Copyright (C) 2026 Giancarlo Erra - Altaire Limited
 import { createHash } from "node:crypto";
 import { QdrantClient } from "@qdrant/js-client-rest";
-import { QDRANT_API_KEY, QDRANT_COLLECTION_PREFIX, QDRANT_HOST, QDRANT_PORT, QDRANT_URL, resolveQdrantPort } from "../constants.js";
+import { CODEBASE_RERANKER_PREFETCH_MULTIPLIER, QDRANT_API_KEY, QDRANT_COLLECTION_PREFIX, QDRANT_HOST, QDRANT_PORT, QDRANT_URL, resolveQdrantPort } from "../constants.js";
 import type { ArtifactIndexState, CodeGraph, FileChunk, SearchResult } from "../types.js";
 import { getEmbeddingConfig } from "./embedding-config.js";
 import { generateEmbeddings, generateQueryEmbedding, prepareDocumentText } from "./embeddings.js";
 import { logger } from "./logger.js";
+import { isRerankerEnabled, maybeRerankSearchResults } from "./reranker.js";
 
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 500;
@@ -371,8 +372,11 @@ async function searchChunksWithVector(
     filter.must.push({ key: "language", match: { value: languageFilter } });
   }
 
+  const candidateLimit = isRerankerEnabled()
+    ? Math.min(200, Math.max(limit, limit * CODEBASE_RERANKER_PREFETCH_MULTIPLIER))
+    : limit;
   // Fetch more candidates per sub-query so RRF has enough to re-rank
-  const prefetchLimit = Math.max(limit * 3, 30);
+  const prefetchLimit = Math.max(candidateLimit * 3, 30);
   const activeFilter = filter.must.length > 0 ? filter : undefined;
 
   const queryPayload = {
@@ -386,7 +390,7 @@ async function searchChunksWithVector(
       },
     ],
     query: { fusion: "rrf" },
-    limit,
+    limit: candidateLimit,
     with_payload: true,
     filter: activeFilter,
   };
@@ -395,7 +399,7 @@ async function searchChunksWithVector(
     "Qdrant hybrid search",
   );
 
-  return results.points.map((r) => ({
+  const mapped = results.points.map((r) => ({
     filePath: r.payload?.filePath as string,
     relativePath: r.payload?.relativePath as string,
     content: r.payload?.content as string,
@@ -404,6 +408,8 @@ async function searchChunksWithVector(
     language: r.payload?.language as string,
     score: r.score,
   }));
+
+  return maybeRerankSearchResults(query, mapped, limit);
 }
 
 /** Merge results from multiple collection queries using client-side Reciprocal Rank Fusion.
@@ -492,7 +498,11 @@ export async function searchMultipleCollections(
 
   collectionResults.push(...allResults);
 
-  return mergeMultiCollectionResults(collectionResults, limit);
+  const mergedLimit = isRerankerEnabled()
+    ? Math.min(200, Math.max(limit, limit * CODEBASE_RERANKER_PREFETCH_MULTIPLIER))
+    : limit;
+  const merged = mergeMultiCollectionResults(collectionResults, mergedLimit);
+  return maybeRerankSearchResults(query, merged, limit);
 }
 
 /** Hybrid search with arbitrary payload filters.
