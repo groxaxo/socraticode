@@ -92,9 +92,39 @@ export const SEARCH_MIN_SCORE = Math.max(0, Math.min(1,
 /** Optional HTTP reranker endpoint. When unset, search stays pure Qdrant hybrid RRF. */
 export const CODEBASE_RERANKER_URL = process.env.CODEBASE_RERANKER_URL || undefined;
 
+/** Optional bearer token for authenticated reranker endpoints. */
+export const CODEBASE_RERANKER_API_KEY =
+  process.env.CODEBASE_RERANKER_API_KEY || process.env.DEEPINFRA_API_KEY || undefined;
+
+/** Optional request format override for providers that do not expose /v1/rerank. */
+export const CODEBASE_RERANKER_FORMAT: "auto" | "openai" | "deepinfra" = (() => {
+  const raw = process.env.CODEBASE_RERANKER_FORMAT || "auto";
+  if (raw !== "auto" && raw !== "openai" && raw !== "deepinfra") {
+    throw new Error(
+      `Invalid CODEBASE_RERANKER_FORMAT: "${raw}". Must be "auto", "openai", or "deepinfra".`,
+    );
+  }
+  return raw;
+})();
+
 /** Request timeout for the optional reranker. */
 export const CODEBASE_RERANKER_TIMEOUT_MS = Math.max(1_000,
   parseInt(process.env.CODEBASE_RERANKER_TIMEOUT_MS || "60000", 10) || 60_000,
+);
+
+/** Maximum characters sent per reranker document. Keeps small local rerankers within batch limits. */
+export const CODEBASE_RERANKER_MAX_DOCUMENT_CHARS = Math.max(200,
+  parseInt(process.env.CODEBASE_RERANKER_MAX_DOCUMENT_CHARS || "1200", 10) || 1_200,
+);
+
+/** Minimum useful top reranker score. Lower values are treated as no signal. */
+export const CODEBASE_RERANKER_MIN_TOP_SCORE = Math.max(0,
+  Number(process.env.CODEBASE_RERANKER_MIN_TOP_SCORE || "0.0001") || 0.0001,
+);
+
+/** Minimum score spread needed before reranker ordering is trusted. */
+export const CODEBASE_RERANKER_MIN_SCORE_DELTA = Math.max(0,
+  Number(process.env.CODEBASE_RERANKER_MIN_SCORE_DELTA || "0.0001") || 0.0001,
 );
 
 /** How many extra Qdrant candidates to request before optional reranking. */

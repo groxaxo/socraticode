@@ -1191,6 +1191,46 @@ The rest of this section documents the variables themselves. Pass them using whi
 | `LITELLM_API_KEY` | *(none)* | **Required.** Master key (`general_settings.master_key` in the proxy's `config.yaml`) or a virtual key issued via LiteLLM's `/key/generate` endpoint. Unlike LM Studio, LiteLLM always authenticates — `/v1/models` itself is gated. |
 | `LITELLM_SEND_DIMENSIONS` | `false` | Opt-in (`true` / `1` / `yes`). Forwards the OpenAI-style `dimensions` parameter through the proxy. Safe only for Matryoshka-aware backends (`text-embedding-3-*`, `voyage-3`); other backends (BGE, `nomic-embed-text`, Cohere v3) reject the request. Leave unset unless you know your alias resolves to a Matryoshka model. |
 
+### DeepInfra Qwen Example
+
+DeepInfra exposes an OpenAI-compatible embeddings endpoint, so use the `lmstudio`
+provider with DeepInfra's `/v1/openai` base URL. Its Qwen reranker uses a
+provider-specific inference endpoint, so set the reranker format to `deepinfra`.
+
+```bash
+EMBEDDING_PROVIDER=lmstudio
+LMSTUDIO_URL=https://api.deepinfra.com/v1/openai
+LMSTUDIO_API_KEY=$DEEPINFRA_API_KEY
+EMBEDDING_MODEL=Qwen/Qwen3-Embedding-8B
+EMBEDDING_DIMENSIONS=4096
+EMBEDDING_CONTEXT_LENGTH=8192
+EMBEDDING_BATCH_SIZE=16
+
+CODEBASE_RERANKER_URL=https://api.deepinfra.com/v1/inference/Qwen/Qwen3-Reranker-4B
+CODEBASE_RERANKER_API_KEY=$DEEPINFRA_API_KEY
+CODEBASE_RERANKER_FORMAT=deepinfra
+CODEBASE_RERANKER_TIMEOUT_MS=180000
+CODEBASE_RERANKER_MAX_DOCUMENT_CHARS=1200
+```
+
+When switching an existing Qdrant instance from a different embedding model,
+either remove and re-index each project or set `QDRANT_COLLECTION_PREFIX` to a
+new namespace such as `deepinfra_`. This avoids mixing vectors with different
+dimensions in the same collection.
+
+### Optional Reranker Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CODEBASE_RERANKER_URL` | *(none)* | Optional HTTP reranker endpoint. When unset, search uses Qdrant hybrid ranking only. OpenAI-style endpoints may point at a base URL and SocratiCode appends `/v1/rerank`; explicit `/v1/rerank` URLs are used as-is. DeepInfra inference URLs are also used as-is. |
+| `CODEBASE_RERANKER_API_KEY` | *(none)* | Optional bearer token for authenticated reranker endpoints. If unset, `DEEPINFRA_API_KEY` is used as a fallback. |
+| `CODEBASE_RERANKER_FORMAT` | `auto` | Request/response format: `auto`, `openai`, or `deepinfra`. `auto` detects DeepInfra inference URLs and otherwise uses the OpenAI-style `{ query, documents, top_n }` format. |
+| `CODEBASE_RERANKER_TIMEOUT_MS` | `60000` | Request timeout for reranker calls. Increase for cold cloud starts or larger candidate sets. |
+| `CODEBASE_RERANKER_MAX_DOCUMENT_CHARS` | `1200` | Maximum characters sent per candidate document to the reranker. Keeps reranking calls small and predictable. |
+| `CODEBASE_RERANKER_MIN_TOP_SCORE` | `0.0001` | Minimum useful top reranker score. Lower values are treated as no signal and SocratiCode falls back to the original hybrid ranking. |
+| `CODEBASE_RERANKER_MIN_SCORE_DELTA` | `0.0001` | Minimum score spread needed before reranker ordering is trusted. Prevents flat or all-zero scores from reshuffling useful hybrid results. |
+| `CODEBASE_RERANKER_PREFETCH_MULTIPLIER` | `3` | Candidate multiplier for the initial Qdrant search before reranking. Higher values give the reranker more candidates, capped internally to prevent runaway requests. |
+
 ### Qdrant Configuration
 
 | Variable | Default | Description |
