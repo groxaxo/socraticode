@@ -339,6 +339,25 @@ export async function deleteFileChunks(collectionName: string, relativePath: str
   );
 }
 
+/** Build the standard two-leg hybrid prefetch array for a Qdrant RRF query.
+ *
+ * Returns `[dense leg, BM25 leg]` in a stable, named structure so that any
+ * caller or test that needs to inspect a specific leg can match by the `using`
+ * field rather than by positional index.  Centralising this here means there
+ * is exactly one place to update if the prefetch layout ever changes.
+ */
+function buildHybridPrefetch(
+  queryVector: number[],
+  query: string,
+  limit: number,
+  filter?: { must: Array<{ key: string; match: { value: string } }> },
+) {
+  return [
+    { query: queryVector, using: "dense" as const, limit, filter },
+    { query: { text: query, model: "qdrant/bm25" }, using: "bm25" as const, limit, filter },
+  ];
+}
+
 /** Hybrid search: combines dense semantic search with BM25 lexical search via RRF fusion.
  * Dense vector is generated client-side; BM25 inference runs server-side in Qdrant (requires v1.15.2+). */
 export async function searchChunks(
@@ -380,15 +399,7 @@ async function searchChunksWithVector(
   const activeFilter = filter.must.length > 0 ? filter : undefined;
 
   const queryPayload = {
-    prefetch: [
-      { query: queryVector, using: "dense", limit: prefetchLimit, filter: activeFilter },
-      {
-        query: { text: query, model: "qdrant/bm25" },
-        using: "bm25",
-        limit: prefetchLimit,
-        filter: activeFilter,
-      },
-    ],
+    prefetch: buildHybridPrefetch(queryVector, query, prefetchLimit, activeFilter),
     query: { fusion: "rrf" },
     limit: candidateLimit,
     with_payload: true,
@@ -524,15 +535,7 @@ export async function searchChunksWithFilter(
 
   const results = await withRetry(
     () => qdrant.query(collectionName, {
-      prefetch: [
-        { query: queryVector, using: "dense", limit: prefetchLimit, filter },
-        {
-          query: { text: query, model: "qdrant/bm25" },
-          using: "bm25",
-          limit: prefetchLimit,
-          filter,
-        },
-      ],
+      prefetch: buildHybridPrefetch(queryVector, query, prefetchLimit, filter),
       query: { fusion: "rrf" },
       limit,
       with_payload: true,
